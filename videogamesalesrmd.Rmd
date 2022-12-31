@@ -1,0 +1,209 @@
+---
+title: "videogamesales"
+author: "Kabir Kathuria"
+date: "1/15/2022"
+output: pdf_document
+---
+
+## Introduction/Overview
+
+The data set used in this project is called "Video Game Sales with Ratings," and it was created by Rush Kirubi. The video game sale data originates from Vgchartz, and the corresponding ratings come from Metacritic. The raw version of the data set contains data on a total of 16,719 video games. The variables listed below are provided for each game in the set:
+
+Name: Name of the video game
+Platform: Video game console that released the video game
+Year_of_Release: Year that the video game was released
+Genre: Category of video game
+Publisher: Publisher of video game
+Developer: Developer of video game
+NA_Sales: Video game sales in North America
+EU_Sales: Video game sales in Europe
+JP_Sales: Video game sales in Japan
+Other_Sales: Video game sales in other countries
+Global_Sales: Total worldwide video game sales
+Critic_Score: Aggregate score of video game compiled by Metacritic staff
+Critic_Count: Number of critics used in formulating critic score
+User_Score: Video game score given by Metacritic's subscribers
+User_Count: Number of users used in formulating user score
+Rating: ESRB rating of video game
+
+My aim for this project was to analyze trends in the video games for each variable. Although I explored and analyzed every variable listed, I maintained a focus on the critic score and user score in order to eventually determine a correlation between the two. It is important to mention that I eliminated games that had incomplete information from the data set in order to simplify the numerous analyses.
+
+Link to the data set: https://www.kaggle.com/rush4ratio/video-game-sales-with-ratings
+
+## Installing/Loading Necessary Packages
+
+The packages needed for this analysis must be installed first and loaded.
+
+```{r downloads}
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(readr)) install.packages("readr", repos = "http://cran.us.r-project.org")
+if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(data.table)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(knitr)
+```
+
+## Data Exploration/Cleaning
+
+The data is accessible through a CSV file, so it must be read into a variable which we will call vgSales.
+
+```{r read}
+vgSales <- read_csv("Video_Games_Sales_as_at_22_Dec_2016.csv")
+summary(vgSales)
+```
+
+vgSales must be examined for any titles with N/A values to delete. There are many null values because the data set is a combination of two different subsets, which means there is a lot of games with missing data.
+
+```{r eliminating_NA}
+colSums(is.na(vgSales))
+vgSales <- vgSales[complete.cases(vgSales), ]
+
+str(vgSales)
+
+sum(vgSales$Year_of_Release != "N/A")
+sum(vgSales$Publisher != "N/A")
+sum(vgSales$Developer != "N/A")
+sum(vgSales$Rating != "N/A")
+
+vgSales_YOR <- vgSales[vgSales$Year_of_Release != "N/A", ]
+vgSales_Publisher <- vgSales[vgSales$Publisher != "N/A", ]
+unique(vgSales$Year_of_Release)
+unique(vgSales$Publisher)
+```
+
+Critic_Score and User_Score are character fields, so they must be converted to numeric fields. Critic_Count and User_Count must also be converted to numeric fields. Dividing the Critic_Score variable by 10 will allow the critic score to be comparable to the user score as they will be in the same decimal place.
+
+```{r scores_numeric}
+vgSales$Critic_Score <- as.numeric(as.character(vgSales$Critic_Score))
+vgSales$Critic_Score <- vgSales$Critic_Score / 10
+
+vgSales$User_Score <- as.numeric(as.character(vgSales$User_Score))
+
+vgSales$Critic_Count <- as.numeric(vgSales$Critic_Count)
+
+vgSales$User_Count <- as.numeric(vgSales$User_Count)
+```
+
+It is important to remember to look for outliers in the sales variables as well. After viewing each summary, there seems to be no extreme outliers with potential to severely alter the data. 
+
+```{r summary_extreme}
+summary(vgSales$EU_Sales)
+summary(vgSales$JP_Sales)
+summary(vgSales$NA_Sales)
+summary(vgSales$Global_Sales)
+summary(vgSales$Other_Sales)
+```
+
+The rating groups "AO," "K-A," and "RP" contain only 1-2 records. Therefore, categorizing the rating groups together as shown below will not only simplify the data, but it will prevent data distortion caused by these three ratings with very few records in particular. 
+
+```{r ratings_group}
+table(vgSales$Rating)
+
+vgSales <- vgSales %>%
+  mutate(Rating = ifelse(Rating == "AO", "M", Rating))
+vgSales <- vgSales %>%
+  mutate(Rating = ifelse(Rating == "K-A", "E", Rating))
+vgSales <- vgSales %>%
+  mutate(Rating = ifelse(Rating == "RP", "E", Rating))
+```
+
+## Modeling Analysis/Results
+
+Based on the plot, the years with the most games released were 2007 and 2008. Both of these years were approaching 600 million units, but were unable to reach it. It seems that the genre that consistently sold the most is action.
+
+```{r byGenre}
+gameGenre <- ggplot(vgSales_YOR, aes(Year_of_Release)) +
+  geom_bar(stat = "count", aes(fill = Genre)) +
+  labs(title = "Total Count of Games Released/Year Sorted by Genre", x = "Year", y = "# of Games") +
+  theme(legend.position = "left", axis.text.x = element_text(angle = 90, hjust = 0.8, size = 6))
+gameGenre
+```
+
+Based on the plot, the year with the most game sales was 2008. This plot is unimodal, so it peaks at only 2008 instead of 2 different years like the previous graph. At this peak, the total game sales were approaching 500 million units, but were unable to reach it. It seems that the region in which the most games consistently sold was North America.
+
+```{r sales_ww}
+vgSales_wwSales <- vgSales_YOR %>%
+  select(Year_of_Release, EU_Sales, JP_Sales, NA_Sales, Other_Sales)
+
+vgSales_byRegion <- gather(vgSales_wwSales, Region, TotalGameSales, EU_Sales:Other_Sales)
+
+wwSales <- ggplot(vgSales_byRegion, aes(x = Year_of_Release, y = TotalGameSales, fill = Region)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Total Game Sales/Year Sorted by Region", x = "Year", y = "Total Game Sales") +
+  theme(legend.position = "left", axis.text.x = element_text(angle = 90, hjust = 0.8, size = 6))
+wwSales
+```
+
+Overall, the critic score is slightly lower than the user score. Also, there is clearly a positive correlation between critic and user score.
+
+```{r score_correlation}
+scoresPlot <- ggplot() + 
+  geom_density(data = vgSales, aes(x = Critic_Score, y = ..scaled..), color = "purple4", fill = "purple", alpha = 0.3) + 
+  geom_density(data = vgSales, aes(x = User_Score, y = ..scaled..), color = "darkorange3", fill = "orange", alpha = 0.3) +
+  labs(title = "Density Correlation between Critic Score (Purple) and User Score (Orange)", x = "Critic_Score, User_Score")
+scoresPlot
+```
+
+## Conclusion
+
+This graph displays the top 25 game publishers based on total game sales. The most successful game publishers are Electronic Arts and Nintendo by a large margin. Although Electronic Arts is slightly ahead in total sales, both publishers are comparable at approximately 875 million units sold. 
+
+```{r sales_publisher}
+salesbyPublisher <- vgSales %>%
+  group_by(Publisher) %>%
+  summarise(pubSales = sum(Global_Sales)) %>%
+  arrange(desc(pubSales)) %>%
+  head(n = 25)
+  
+pubPlot <- ggplot(salesbyPublisher, aes(x = reorder(Publisher, pubSales), y = pubSales)) +
+  geom_bar(stat = "identity", fill = "red") +
+  labs(title = "Total Game Sales by Publisher", x = "Publisher", y = "Total Sales") +
+  theme_bw() +
+  coord_flip()
+pubPlot
+```
+
+This graph displays the top 25 game platforms based on total game sales. The most successful game platform is PS2, with Xbox 360 close behind it. This graph is distributed much more evenly than the previous graph. PS2 has successfully sold approximately 960 million units, which is about 100 million more units sold than Xbox 360.
+
+```{r sales_platform}
+salesbyPlatform <- vgSales %>%
+  group_by(Platform) %>%
+  summarise(platSales = sum(Global_Sales)) %>%
+  arrange(desc(platSales)) %>%
+  head(n = 25)
+  
+platPlot <- ggplot(salesbyPlatform, aes(x = reorder(Platform, platSales), y = platSales)) +
+  geom_bar(stat = "identity", fill = "green") +
+  labs(title = "Total Game Sales by Platform", x = "Platform", y = "Total Sales") +
+  theme_bw() +
+  coord_flip()
+platPlot
+```
+
+Based on the results of this t-test, the mean of the critic score is approximately 7.026357 and the mean of the user score is approximately 7.183360. Also, p < 0.05, meaning that it can be said with 95% confidence that the difference between the means of the critic score and user score are significant.
+
+```{r t_test}
+t.test(vgSales$Critic_Score, vgSales$User_Score)
+```
+
+
+
+
+This exploratory data analysis served useful in analyzing the sales and distribution of the video games data set. My primary goal for this project was to determine the correlation between critic scores and user scores, which I successfully accomplished using statistical concepts. After converting the scores to numeric values, running a t-test and plotting a corresponding density plot allowed me to observe that the difference between the means of user and critic scores was very minor (less than 0.05). Additionally, it was visible that the two scores had a positive correlation as their graphs were of very similar shape and followed the same curving patterns. 
+
+I was also intrigued by this project because of the other unexpected trends between variables besides User_Score and Critic_Score. For example, it surprised me that the two years with the most video games released were 2008 and 2009. Additionally, I learned that action has consistently been the best selling video game genre, contrary to my initial assumption, sports. 
+
+Using ggplot2, I created horizontal bar charts for the top 25 grossing video game publishers and platforms in terms of global sales. I noticed that in the publishers' plot, Electronic Arts and Nintendo were the most successful publishers in terms of sales by a large margin. The plot was very skewed and unevenly distributed. However, the platform plot was more evenly distributed and contained numerous close competitors. Although PS2 and Xbox 360 were the leading platforms, PS3, Wii, and a few others were close. I expected Wii to be the most popular platform as Nintendo is very popular in Japan, which is what I considered the hub of gaming. To my surprise, the Americans are taking over the gaming scene as their platforms are the highest grossing, and a majority of video game sales also occur in North America compared to Europe, Japan, and other countries.
+
+Future work definitely needs to be done on this data set to account for the games that were eliminated because they contained N/A values. With the addition of games that were missing information, I believe that the results and observed trends would have been completely different. Instead of inputting 100% accurate values for missing categories, perhaps a good idea would be to input a projected value in order to make sure all 16,000+ games can be used in the data analysis.
